@@ -1,65 +1,68 @@
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware for parsing JSON body
+// Middleware to parse JSON bodies
 app.use(express.json());
 
-// Serve static files from the 'public' directory
-app.use(express.static(path.join(__dirname, 'public')));
+// Serve static files
+app.use(express.static('public'));
 
-// Define the path to the db.json file
-const dbFilePath = path.join(__dirname, 'db', 'db.json');
+// Route to serve index.html
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
-// Routes
+// Route to serve notes.html
 app.get('/notes', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'notes.html'));
+    res.sendFile(path.join(__dirname, 'public', 'notes.html'));
 });
 
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// API routes
+// Route to get all notes
 app.get('/api/notes', (req, res) => {
-  fs.readFile(dbFilePath, 'utf8', (err, data) => {
-    if (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Internal Server Error' });
-      return;
-    }
-    res.setHeader('Content-Type', 'application/json');
-    res.send(data);
-  });
+    fs.readFile(path.join(__dirname, 'public', 'db', 'db.json'), 'utf8', (err, data) => {
+        if (err) {
+            console.error(err);
+            res.status(500).json({ error: 'Failed to read notes from the database.' });
+            return;
+        }
+        const notes = JSON.parse(data);
+        res.json(notes);
+    });
 });
 
-
+// Route to save a new note
 app.post('/api/notes', (req, res) => {
-  const newNote = req.body;
-  // Generate unique ID for the new note
-  newNote.id = Date.now().toString();
-  fs.readFile(dbFilePath, 'utf8', (err, data) => {
-    if (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Internal Server Error' });
-      return;
-    }
-    const notes = JSON.parse(data);
-    notes.push(newNote);
-    fs.writeFile(dbFilePath, JSON.stringify(notes, null, 2), (err) => {
-      if (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Internal Server Error' });
-        return;
-      }
-      res.json(newNote);
+    const newNote = req.body;
+    fs.readFile(path.join(__dirname, 'public', 'db', 'db.json'), 'utf8', (err, data) => {
+        if (err) {
+            console.error(err);
+            res.status(500).json({ error: 'Failed to read notes from the database.' });
+            return;
+        }
+        const notes = JSON.parse(data);
+        newNote.id = generateUniqueId(); // Generate unique ID for the note
+        notes.push(newNote);
+        fs.writeFile(path.join(__dirname, 'public', 'db', 'db.json'), JSON.stringify(notes), 'utf8', (err) => {
+            if (err) {
+                console.error(err);
+                res.status(500).json({ error: 'Failed to save the note to the database.' });
+                return;
+            }
+            res.json(newNote);
+        });
     });
-  });
 });
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Server is running on http://localhost:${PORT}`);
 });
+
+// Function to generate unique IDs (you can use any other method/library for generating unique IDs)
+function generateUniqueId() {
+    return Math.random().toString(36).substr(2, 9);
+}
